@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block title %}User Activity - {{ target_user.username }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .activity-stat {
+        background: linear-gradient(135deg, #0f0f0f 0%, #0a0a0a 100%);
+        border: 1px solid #1f1f1f;
+        border-radius: 1rem;
+        transition: all 0.3s ease;
+    }
+    .activity-stat:hover {
+        border-color: #06b6d4;
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap justify-between items-center">
+        <div>
+            <div class="flex items-center gap-3">
+                <div class="w-14 h-14 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-2xl font-bold text-white">
+                    {{ target_user.username|first|upper }}
+                </div>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">{{ target_user.username }}</h1>
+                    <p class="text-gray-500 mt-1">
+                        Activity & Performance Dashboard
+                        {% if is_own_profile %} • This is you{% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <a href="{% url 'cti_core:users_list' %}" class="text-cyan-400 hover:text-cyan-300 text-sm flex items-center gap-1">
+            ← Back to Users
+        </a>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="activity-stat p-4 text-center">
+            <div class="text-3xl font-bold text-cyan-400">{{ alerts_handled }}</div>
+            <div class="text-gray-500 text-sm mt-1">Alerts Handled</div>
+        </div>
+        <div class="activity-stat p-4 text-center">
+            <div class="text-3xl font-bold text-green-400">{{ alerts_resolved }}</div>
+            <div class="text-gray-500 text-sm mt-1">Alerts Resolved</div>
+        </div>
+        <div class="activity-stat p-4 text-center">
+            <div class="text-3xl font-bold text-yellow-400">{{ alerts_acknowledged }}</div>
+            <div class="text-gray-500 text-sm mt-1">Acknowledged</div>
+        </div>
+        <div class="activity-stat p-4 text-center">
+            <div class="text-3xl font-bold text-purple-400">{{ resolution_rate }}%</div>
+            <div class="text-gray-500 text-sm mt-1">Resolution Rate</div>
+        </div>
+    </div>
+
+    <!-- Daily Activity Chart -->
+    <div class="card p-5">
+        <h2 class="text-white font-semibold mb-4">📊 Daily Activity (Last 14 Days)</h2>
+        <canvas id="activityChart" height="200"></canvas>
+    </div>
+
+    <!-- Recent Alerts -->
+    <div class="card p-5">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-white font-semibold">🚨 Recent Alerts</h2>
+            <span class="text-gray-500 text-xs">Last 7 days</span>
+        </div>
+        <div class="space-y-2 max-h-96 overflow-y-auto">
+            {% for alert in recent_alerts %}
+            <div class="flex items-center justify-between p-3 bg-gray-900/50 rounded-lg border border-gray-800 hover:border-cyan-500 transition">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <div class="w-2 h-2 rounded-full {% if alert.severity == 'Critical' %}bg-red-500{% elif alert.severity == 'High' %}bg-orange-500{% elif alert.severity == 'Medium' %}bg-yellow-500{% else %}bg-blue-500{% endif %}"></div>
+                        <span class="text-white text-sm">{{ alert.title|truncatechars:60 }}</span>
+                    </div>
+                    <div class="text-gray-500 text-xs mt-1">
+                        {{ alert.created_at|date:"Y-m-d H:i" }} • Severity: {{ alert.severity }} • Status: {{ alert.status }}
+                    </div>
+                </div>
+                <a href="{% url 'cti_core:alert_detail' alert.id %}" class="text-cyan-400 hover:text-cyan-300 text-sm">View</a>
+            </div>
+            {% empty %}
+            <div class="text-center text-gray-500 py-4">No recent alerts</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Related Campaigns -->
+    <div class="card p-5">
+        <h2 class="text-white font-semibold mb-4">🎯 Campaigns Involved</h2>
+        <div class="flex flex-wrap gap-2">
+            {% for campaign in campaigns %}
+            <a href="{% url 'cti_core:campaign_detail' campaign.id %}" 
+               class="px-3 py-1.5 bg-purple-500/20 text-purple-400 rounded-lg text-sm hover:bg-purple-500/30 transition">
+                {{ campaign.name }}
+            </a>
+            {% empty %}
+            <p class="text-gray-500">No campaigns involved</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script>
+    const dailyData = {{ daily_activity_json|safe }};
+    new Chart(document.getElementById('activityChart'), {
+        type: 'bar',
+        data: {
+            labels: dailyData.map(d => d.date.slice(5)),
+            datasets: [{
+                label: 'Alerts Handled',
+                data: dailyData.map(d => d.count),
+                backgroundColor: '#06b6d4',
+                borderRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: { legend: { labels: { color: '#9ca3af' } } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#1f1f1f' }, ticks: { color: '#9ca3af' } },
+                x: { grid: { color: '#1f1f1f' }, ticks: { color: '#9ca3af' } }
+            }
+        }
+    });
+</script>
+{% endblock %}

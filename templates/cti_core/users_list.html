@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}User Management - Zimbabwe CERT{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center flex-wrap gap-4">
+        <div>
+            <h1 class="text-3xl font-bold text-white">User Management</h1>
+            <p class="text-gray-500 mt-1">Manage security analysts and administrators</p>
+        </div>
+        <a href="{% url 'cti_core:user_create' %}" 
+           class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-xl text-white font-medium hover:shadow-lg hover:shadow-cyan-500/25 transition-all">
+            + Add New User
+        </a>
+    </div>
+    
+    <!-- Users Table -->
+    <div class="card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="bg-gray-900/50 border-b border-gray-800">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">User</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Role</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Last Login</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-800">
+                    {% for user in users %}
+                    <tr class="hover:bg-gray-900/30 transition">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white">
+                                    {{ user.username|first|upper }}
+                                </div>
+                                <div class="ml-3">
+                                    <div class="text-sm font-medium text-white">{{ user.username }}</div>
+                                    <div class="text-xs text-gray-500">{{ user.email }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if user.is_superuser %}
+                                <span class="px-2 py-1 text-xs rounded-lg bg-red-500/20 text-red-400 border border-red-500/30">Super Admin</span>
+                            {% elif user.is_staff %}
+                                <span class="px-2 py-1 text-xs rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30">Administrator</span>
+                            {% else %}
+                                <span class="px-2 py-1 text-xs rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30">Analyst</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ user.last_login|date:"Y-m-d H:i"|default:"Never" }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if user.is_active %}
+                                <span class="flex items-center">
+                                    <span class="w-2 h-2 bg-emerald-500 rounded-full mr-2"></span>
+                                    <span class="text-sm text-gray-400">Active</span>
+                                </span>
+                            {% else %}
+                                <span class="flex items-center">
+                                    <span class="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
+                                    <span class="text-sm text-gray-500">Inactive</span>
+                                </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm">
+                            <div class="flex space-x-3">
+                                <a href="{% url 'cti_core:user_edit' user.pk %}" 
+                                   class="text-cyan-400 hover:text-cyan-300 transition">Edit</a>
+                                <button onclick="resetPassword('{{ user.pk }}')" 
+                                        class="text-yellow-400 hover:text-yellow-300 transition">Reset</button>
+                                <button onclick="deleteUser('{{ user.pk }}', '{{ user.username|escapejs }}')" 
+                                        class="text-red-400 hover:text-red-300 transition">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                            No users found. Click "Add New User" to create one.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+function resetPassword(userId) {
+    if (confirm('Reset password for this user? They will receive an email to set a new password.')) {
+        fetch(`/cti/users/${userId}/reset-password/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrf-token]').content,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert('Password reset email sent successfully');
+            } else {
+                alert('Error: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => alert('Error: ' + error));
+    }
+}
+
+function deleteUser(userId, username) {
+    if (confirm(`Are you sure you want to delete user "${username}"? This action cannot be undone.`)) {
+        fetch(`/cti/users/${userId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrf-token]').content,
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error deleting user: ' + (data.error || 'Unknown error'));
+            }
+        })
+        .catch(error => alert('Error: ' + error));
+    }
+}
+</script>
+{% endblock %}

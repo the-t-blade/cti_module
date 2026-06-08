@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+
+{% block title %}Reports - CTI Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+    .report-card {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+    .report-card:hover {
+        transform: translateY(-4px);
+        border-color: #06b6d4;
+        box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.2);
+    }
+    .schedule-badge {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        background: #06b6d4;
+        border-radius: 20px;
+        padding: 2px 8px;
+        font-size: 10px;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">📊 Threat Intelligence Reports</h1>
+            <p class="text-gray-500 mt-1">Generate, schedule, and download professional threat reports</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="showScheduleModal()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                Schedule Report
+            </button>
+            <button onclick="showReportHistory()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                </svg>
+                History
+            </button>
+        </div>
+    </div>
+
+    <!-- Report Generation Card -->
+    <div class="card p-6">
+        <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <span class="text-2xl">📝</span>
+            Generate New Report
+        </h2>
+        
+        <form method="post" action="{% url 'cti_core:generate_report' %}" target="_blank" class="space-y-4" id="reportForm">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Report Type -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Report Type</label>
+                    <select name="report_type" id="reportType" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-cyan-500">
+                        <option value="daily">📅 Daily Threat Report</option>
+                        <option value="weekly">📈 Weekly Threat Summary</option>
+                        <option value="monthly">📆 Monthly Threat Analysis</option>
+                        <option value="campaign">🎯 Campaign Analysis Report</option>
+                        <option value="threat_actor">🦹 Threat Actor Profile</option>
+                    </select>
+                </div>
+                
+                <!-- Report Format -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Format</label>
+                    <select name="format" id="reportFormat" required class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:border-cyan-500">
+                        <option value="pdf">📄 PDF Document (Print Ready)</option>
+                        <option value="html">🌐 HTML Report</option>
+                        <option value="json">📋 JSON Data</option>
+                        <option value="csv">📊 CSV Export</option>
+                    </select>
+                </div>
+                
+                <!-- Date Range -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Date Range</label>
+                    <select name="date_range" id="dateRange" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        <option value="7">Last 7 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="custom">Custom Range</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Custom Date Range (hidden by default) -->
+            <div id="customDateRange" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Start Date</label>
+                    <input type="date" name="start_date" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                </div>
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">End Date</label>
+                    <input type="date" name="end_date" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                </div>
+            </div>
+            
+            <!-- Campaign ID (dynamic) -->
+            <div id="campaignField" class="hidden">
+                <label class="block text-gray-400 text-sm mb-2">Campaign ID / Name</label>
+                <input type="text" name="campaign_id" placeholder="Enter campaign ID or name" 
+                       class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+            </div>
+            
+            <!-- Threat Actor (dynamic) -->
+            <div id="threatActorField" class="hidden">
+                <label class="block text-gray-400 text-sm mb-2">Threat Actor Name</label>
+                <input type="text" name="threat_actor" placeholder="e.g., APT28, Lazarus Group" 
+                       class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                <p class="text-gray-500 text-xs mt-1">Deployed campaigns and attack patterns</p>
+            </div>
+            
+            <!-- Advanced Options -->
+            <details class="mt-4">
+                <summary class="text-cyan-400 text-sm cursor-pointer hover:text-cyan-300">Advanced Options</summary>
+                <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 p-3 bg-gray-900/30 rounded-lg">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="include_charts" value="true" class="rounded bg-gray-800" checked>
+                        <span class="text-gray-300 text-sm">Include Charts & Graphs</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="include_raw_data" value="true" class="rounded bg-gray-800">
+                        <span class="text-gray-300 text-sm">Include Raw Data Tables</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="include_mitre" value="true" class="rounded bg-gray-800" checked>
+                        <span class="text-gray-300 text-sm">Include MITRE ATT&CK Mapping</span>
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" name="email_report" value="true" class="rounded bg-gray-800">
+                        <span class="text-gray-300 text-sm">Email Report to Stakeholders</span>
+                    </label>
+                </div>
+            </details>
+            
+            <div class="flex gap-3 pt-4">
+                <button type="submit" class="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-lg text-white font-semibold transition shadow-lg flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Generate Report
+                </button>
+                <button type="reset" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition">
+                    Reset
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Available Report Templates -->
+    <div class="card p-6">
+        <h2 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+            <span class="text-2xl">📋</span>
+            Report Templates
+        </h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Daily Report -->
+            <div class="report-card bg-gray-900/50 rounded-lg p-4 border border-gray-800 relative">
+                <div class="text-3xl mb-2">📅</div>
+                <h3 class="text-white font-semibold">Daily Threat Report</h3>
+                <p class="text-gray-500 text-xs mt-1">24-hour threat summary</p>
+                <div class="mt-3 flex flex-wrap gap-1">
+                    <span class="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded">Indicators</span>
+                    <span class="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded">Alerts</span>
+                    <span class="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded">Campaigns</span>
+                </div>
+            </div>
+            
+            <!-- Weekly Report -->
+            <div class="report-card bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+                <div class="text-3xl mb-2">📈</div>
+                <h3 class="text-white font-semibold">Weekly Threat Summary</h3>
+                <p class="text-gray-500 text-xs mt-1">7-day overview with trends</p>
+                <div class="mt-3 flex flex-wrap gap-1">
+                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Trends</span>
+                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Stats</span>
+                    <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">Charts</span>
+                </div>
+            </div>
+            
+            <!-- Monthly Report -->
+            <div class="report-card bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+                <div class="text-3xl mb-2">📆</div>
+                <h3 class="text-white font-semibold">Monthly Analysis</h3>
+                <p class="text-gray-500 text-xs mt-1">30-day deep dive</p>
+                <div class="mt-3 flex flex-wrap gap-1">
+                    <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Executive Summary</span>
+                    <span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded">Predictions</span>
+                </div>
+            </div>
+            
+            <!-- Campaign Analysis -->
+            <div class="report-card bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+                <div class="text-3xl mb-2">🎯</div>
+                <h3 class="text-white font-semibold">Campaign Analysis</h3>
+                <p class="text-gray-500 text-xs mt-1">Specific threat campaign</p>
+                <div class="mt-3 flex flex-wrap gap-1">
+                    <span class="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded">IOCs</span>
+                    <span class="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded">TTPs</span>
+                    <span class="text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded">MITRE</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scheduled Reports -->
+    <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <span class="text-2xl">⏰</span>
+                Scheduled Reports
+            </h2>
+            <button onclick="showScheduleModal()" class="text-cyan-400 hover:text-cyan-300 text-sm">+ Add Schedule</button>
+        </div>
+        
+        <div id="scheduledReportsList" class="space-y-2">
+            <div class="text-center text-gray-500 py-4">No scheduled reports. Click "Add Schedule" to set up automatic reports.</div>
+        </div>
+    </div>
+
+    <!-- Recent Reports History -->
+    <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+                <span class="text-2xl">📁</span>
+                Recent Reports
+            </h2>
+            <button onclick="loadReportHistory()" class="text-cyan-400 hover:text-cyan-300 text-sm flex items-center gap-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Refresh
+            </button>
+        </div>
+        
+        <div id="recentReportsList" class="space-y-2">
+            <div class="text-center text-gray-500 py-4">No reports generated yet. Generate your first report above.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Schedule Modal -->
+<div id="scheduleModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+    <div class="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-800">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-white">Schedule Recurring Report</h3>
+            <button onclick="closeScheduleModal()" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+        <form id="scheduleForm" class="space-y-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-gray-400 text-sm mb-2">Report Type</label>
+                <select name="schedule_report_type" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                    <option value="daily">Daily Summary</option>
+                    <option value="weekly">Weekly Summary</option>
+                    <option value="monthly">Monthly Summary</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-400 text-sm mb-2">Frequency</label>
+                <select name="schedule_frequency" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                    <option value="daily">Every Day</option>
+                    <option value="weekly">Every Monday</option>
+                    <option value="monthly">1st of Month</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-400 text-sm mb-2">Format</label>
+                <select name="schedule_format" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                    <option value="pdf">PDF Document</option>
+                    <option value="html">HTML Report</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-gray-400 text-sm mb-2">Recipients (email)</label>
+                <input type="email" name="schedule_recipients" placeholder="comma-separated emails" 
+                       class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                <p class="text-gray-500 text-xs mt-1">Reports will be emailed to these addresses</p>
+            </div>
+            <div class="flex gap-3 pt-4">
+                <button type="submit" class="flex-1 px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white">Create Schedule</button>
+                <button type="button" onclick="closeScheduleModal()" class="flex-1 px-4 py-2 bg-gray-800 rounded-lg text-gray-300">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Dynamic field visibility
+    const reportType = document.getElementById('reportType');
+    const campaignField = document.getElementById('campaignField');
+    const threatActorField = document.getElementById('threatActorField');
+    const dateRange = document.getElementById('dateRange');
+    const customDateRange = document.getElementById('customDateRange');
+    
+    if (reportType) {
+        reportType.addEventListener('change', function() {
+            campaignField.classList.add('hidden');
+            threatActorField.classList.add('hidden');
+            
+            if (this.value === 'campaign') {
+                campaignField.classList.remove('hidden');
+            } else if (this.value === 'threat_actor') {
+                threatActorField.classList.remove('hidden');
+            }
+        });
+    }
+    
+    if (dateRange) {
+        dateRange.addEventListener('change', function() {
+            customDateRange.classList.toggle('hidden', this.value !== 'custom');
+        });
+    }
+    
+    // Modal functions
+    function showScheduleModal() {
+        document.getElementById('scheduleModal').classList.remove('hidden');
+        document.getElementById('scheduleModal').classList.add('flex');
+    }
+    
+    function closeScheduleModal() {
+        document.getElementById('scheduleModal').classList.add('hidden');
+        document.getElementById('scheduleModal').classList.remove('flex');
+    }
+    
+    // Load report history
+    async function loadReportHistory() {
+        try {
+            const response = await fetch('/api/reports/list/');
+            if (response.ok) {
+                const reports = await response.json();
+                const container = document.getElementById('recentReportsList');
+                if (container && reports.length) {
+                    container.innerHTML = reports.map(report => `
+                        <div class="bg-gray-900/50 rounded-lg p-3 flex justify-between items-center hover:bg-gray-800 transition">
+                            <div class="flex items-center gap-3">
+                                <div class="text-2xl">${report.type === 'daily' ? '📅' : report.type === 'weekly' ? '📈' : '📆'}</div>
+                                <div>
+                                    <span class="text-white font-medium">${report.name}</span>
+                                    <p class="text-gray-500 text-xs">Generated: ${new Date(report.created_at).toLocaleString()} • ${report.format.toUpperCase()}</p>
+                                </div>
+                            </div>
+                            <div class="flex gap-2">
+                                <a href="${report.download_url}" class="text-cyan-400 hover:text-cyan-300 text-sm">Download</a>
+                                <button onclick="deleteReport('${report.id}')" class="text-red-400 hover:text-red-300 text-sm">Delete</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="text-center text-gray-500 py-4">No reports generated yet.</div>';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load reports:', error);
+        }
+    }
+    
+    // Delete report
+    async function deleteReport(reportId) {
+        if (confirm('Are you sure you want to delete this report?')) {
+            try {
+                const response = await fetch(`/api/reports/${reportId}/delete/`, {
+                    method: 'DELETE',
+                    headers: {'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}
+                });
+                if (response.ok) {
+                    loadReportHistory();
+                    showToast('Report deleted successfully', 'success');
+                }
+            } catch (error) {
+                console.error('Delete failed:', error);
+            }
+        }
+    }
+    
+    // Load scheduled reports
+    async function loadScheduledReports() {
+        try {
+            const response = await fetch('/api/reports/schedules/');
+            if (response.ok) {
+                const schedules = await response.json();
+                const container = document.getElementById('scheduledReportsList');
+                if (container && schedules.length) {
+                    container.innerHTML = schedules.map(schedule => `
+                        <div class="bg-gray-900/50 rounded-lg p-3 flex justify-between items-center">
+                            <div>
+                                <span class="text-white font-medium">${schedule.type} Report</span>
+                                <p class="text-gray-500 text-xs">${schedule.frequency} • Next: ${new Date(schedule.next_run).toLocaleDateString()}</p>
+                            </div>
+                            <button onclick="deleteSchedule('${schedule.id}')" class="text-red-400 hover:text-red-300 text-sm">Cancel</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<div class="text-center text-gray-500 py-4">No scheduled reports.</div>';
+                }
+            }
+        } catch (error) {
+            console.error('Failed to load schedules:', error);
+        }
+    }
+    
+    // Handle schedule form submission
+    document.getElementById('scheduleForm')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch('/api/reports/schedule/', {
+                method: 'POST',
+                headers: {'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content},
+                body: formData
+            });
+            if (response.ok) {
+                closeScheduleModal();
+                loadScheduledReports();
+                showToast('Report scheduled successfully', 'success');
+            }
+        } catch (error) {
+            console.error('Schedule failed:', error);
+        }
+    });
+    
+    // Toast function
+    function showToast(message, type) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        const toast = document.createElement('div');
+        toast.className = `toast-slide bg-gradient-to-r ${type === 'success' ? 'from-green-600 to-green-800' : 'from-red-600 to-red-800'} rounded-lg shadow-2xl p-3 max-w-sm mb-2`;
+        toast.innerHTML = `<div class="text-sm text-white">${message}</div>`;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Initial load
+    loadReportHistory();
+    loadScheduledReports();
+</script>
+{% endblock %}

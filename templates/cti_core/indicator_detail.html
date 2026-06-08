@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Indicator Details - {{ indicator.indicator_value|truncatechars:50 }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">Threat Indicator Details</h1>
+            <p class="text-gray-500 mt-1">Detailed view of indicator of compromise (IOC)</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'cti_core:indicators_list' %}" 
+               class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition">
+                ← Back to Indicators
+            </a>
+            {% if user.is_staff %}
+            <button onclick="editIndicator()" 
+                    class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg text-white transition">
+                Edit Severity
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Main Card -->
+    <div class="card p-6">
+        <!-- Header Info -->
+        <div class="flex flex-wrap justify-between items-start mb-6 pb-4 border-b border-gray-800">
+            <div>
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-xl {% if indicator.severity == 'Critical' %}bg-red-500/20{% elif indicator.severity == 'High' %}bg-orange-500/20{% elif indicator.severity == 'Medium' %}bg-yellow-500/20{% else %}bg-blue-500/20{% endif %} flex items-center justify-center">
+                        <span class="text-2xl">
+                            {% if indicator.indicator_type == 'IPv4' or indicator.indicator_type == 'IPv6' %}🌐
+                            {% elif indicator.indicator_type == 'Domain' %}🔗
+                            {% elif indicator.indicator_type == 'FileHash-MD5' or indicator.indicator_type == 'FileHash-SHA1' or indicator.indicator_type == 'FileHash-SHA256' %}📁
+                            {% elif indicator.indicator_type == 'URL' %}🔒
+                            {% elif indicator.indicator_type == 'Email' %}📧
+                            {% else %}⚠️{% endif %}
+                        </span>
+                    </div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white font-mono">{{ indicator.indicator_value|truncatechars:80 }}</h2>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="px-2 py-1 text-xs rounded-lg bg-gray-800 text-cyan-400 font-mono">{{ indicator.indicator_type }}</span>
+                            <span class="severity-{{ indicator.severity|lower }}">{{ indicator.severity }}</span>
+                            {% if indicator.campaign %}
+                            <span class="px-2 py-1 text-xs rounded-lg bg-purple-500/20 text-purple-400">
+                                📊 Campaign: {{ indicator.campaign.name|truncatechars:30 }}
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-gray-500 text-sm">Confidence Score</div>
+                <div class="flex items-center gap-2 mt-1">
+                    <div class="w-32 bg-gray-700 rounded-full h-2">
+                        <div class="bg-cyan-500 h-2 rounded-full" style="width: {{ indicator.confidence|floatformat:2|add:"00" }}%"></div>
+                    </div>
+                    <span class="text-white font-semibold">{{ indicator.confidence|floatformat:2 }}%</span>
+                </div>
+                <div class="text-gray-500 text-xs mt-2">
+                    {% if indicator.confidence >= 0.8 %}🎯 High confidence - Likely malicious
+                    {% elif indicator.confidence >= 0.5 %}⚠️ Medium confidence - Requires investigation
+                    {% else %}🔍 Low confidence - May be false positive{% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Two Column Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left Column - Details -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Context / Description -->
+                <div>
+                    <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Context / Intelligence
+                    </h3>
+                    <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                        {% if indicator.context %}
+                            <p class="text-gray-300 whitespace-pre-wrap">{{ indicator.context }}</p>
+                        {% else %}
+                            <p class="text-gray-500 italic">No additional context provided for this indicator.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Tags -->
+                <div>
+                    <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l5 5a2 2 0 01.586 1.414V19a2 2 0 01-2 2H7a2 2 0 01-2-2V5a2 2 0 012-2z"></path>
+                        </svg>
+                        Tags
+                    </h3>
+                    <div class="flex flex-wrap gap-2">
+                        {% if indicator.tags %}
+                            {% for tag in indicator.get_tags_list %}
+                            <span class="px-2 py-1 text-xs rounded-lg bg-gray-800 text-cyan-400">{{ tag }}</span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-gray-500 italic">No tags</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Source Information -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                        <div class="text-gray-500 text-sm">Source Feed</div>
+                        <div class="text-white font-medium mt-1">{{ indicator.source.name|default:"Unknown" }}</div>
+                        {% if indicator.source %}
+                        <div class="text-gray-500 text-xs mt-1">
+                            Type: {{ indicator.source.feed_type }}
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                        <div class="text-gray-500 text-sm">Source URL</div>
+                        <div class="text-cyan-400 text-sm mt-1 break-all">
+                            {% if indicator.source and indicator.source.source_url %}
+                            <a href="{{ indicator.source.source_url }}" target="_blank" class="hover:underline">
+                                {{ indicator.source.source_url|truncatechars:50 }}
+                            </a>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column - Metadata & Related -->
+            <div class="space-y-6">
+                <!-- Timeline -->
+                <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                    <h3 class="text-white font-semibold mb-3">Timeline</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 text-sm">First Seen</span>
+                            <span class="text-gray-300 text-sm">{{ indicator.first_seen|date:"Y-m-d H:i:s" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 text-sm">Last Seen</span>
+                            <span class="text-gray-300 text-sm">{{ indicator.last_seen|date:"Y-m-d H:i:s" }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 text-sm">Age</span>
+                            <span class="text-gray-300 text-sm">{{ indicator.last_seen|timesince:indicator.first_seen }}</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500 text-sm">Status</span>
+                            <span class="text-emerald-400 text-sm">
+                                {% if indicator.is_active %}Active{% else %}Inactive{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Related Alerts -->
+                <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                    <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Related Alerts ({{ alerts|length }})
+                    </h3>
+                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                        {% for alert in alerts %}
+                        <a href="{% url 'cti_core:alert_detail' alert.id %}" 
+                           class="block p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm">{{ alert.title|truncatechars:40 }}</span>
+                                <span class="severity-{{ alert.severity|lower }} text-xs">{{ alert.severity }}</span>
+                            </div>
+                            <div class="text-gray-500 text-xs mt-1">{{ alert.created_at|date:"Y-m-d H:i" }}</div>
+                        </a>
+                        {% empty %}
+                        <p class="text-gray-500 italic text-sm">No alerts associated with this indicator.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <!-- Related Indicators -->
+                {% if related_indicators %}
+                <div class="bg-gray-900/50 rounded-xl p-4 border border-gray-800">
+                    <h3 class="text-white font-semibold mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                        </svg>
+                        Related Indicators
+                    </h3>
+                    <div class="space-y-2 max-h-48 overflow-y-auto">
+                        {% for related in related_indicators %}
+                        <a href="{% url 'cti_core:indicator_detail' related.id %}" 
+                           class="block p-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-300 text-sm font-mono">{{ related.indicator_value|truncatechars:40 }}</span>
+                                <span class="severity-{{ related.severity|lower }} text-xs">{{ related.severity }}</span>
+                            </div>
+                            <div class="text-gray-500 text-xs mt-1">{{ related.indicator_type }}</div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Recommended Actions -->
+    <div class="card p-6">
+        <h3 class="text-white font-semibold mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+            </svg>
+            Recommended Actions
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% if indicator.indicator_type == 'IPv4' or indicator.indicator_type == 'IPv6' %}
+            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <div class="text-red-400 font-medium">Network Blocking</div>
+                <p class="text-gray-400 text-sm mt-1">Block IP {{ indicator.indicator_value }} at perimeter firewall</p>
+            </div>
+            <div class="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                <div class="text-orange-400 font-medium">Log Review</div>
+                <p class="text-gray-400 text-sm mt-1">Search SIEM for connections to/from this IP</p>
+            </div>
+            {% elif indicator.indicator_type == 'Domain' %}
+            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <div class="text-red-400 font-medium">DNS Sinkhole</div>
+                <p class="text-gray-400 text-sm mt-1">Add domain to DNS sinkhole and block resolution</p>
+            </div>
+            <div class="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                <div class="text-orange-400 font-medium">Query Audit</div>
+                <p class="text-gray-400 text-sm mt-1">Review DNS logs for resolution requests</p>
+            </div>
+            {% elif indicator.indicator_type|slice:":8" == 'FileHash' %}
+            <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <div class="text-red-400 font-medium">Quarantine</div>
+                <p class="text-gray-400 text-sm mt-1">Search for and quarantine matching files</p>
+            </div>
+            <div class="bg-orange-500/10 border border-orange-500/30 rounded-lg p-3">
+                <div class="text-orange-400 font-medium">YARA Scan</div>
+                <p class="text-gray-400 text-sm mt-1">Run YARA rules across endpoints</p>
+            </div>
+            {% else %}
+            <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
+                <div class="text-cyan-400 font-medium">Investigate</div>
+                <p class="text-gray-400 text-sm mt-1">Manual investigation required for this indicator type</p>
+            </div>
+            <div class="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3">
+                <div class="text-cyan-400 font-medium">Document</div>
+                <p class="text-gray-400 text-sm mt-1">Add indicator to internal threat intelligence</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function editIndicator() {
+    const newSeverity = prompt('Enter new severity (Critical, High, Medium, Low, Info):', '{{ indicator.severity }}');
+    if (newSeverity && ['Critical', 'High', 'Medium', 'Low', 'Info'].includes(newSeverity)) {
+        fetch(`/cti/indicators/{{ indicator.id }}/update-severity/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrf-token]').content,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `severity=${newSeverity}`
+        }).then(() => location.reload());
+    }
+}
+
+// Copy indicator value to clipboard
+function copyToClipboard() {
+    navigator.clipboard.writeText('{{ indicator.indicator_value }}');
+    alert('Indicator copied to clipboard');
+}
+</script>
+{% endblock %}

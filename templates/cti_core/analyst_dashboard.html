@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}Analyst Dashboard - {{ analyst.username }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: linear-gradient(135deg, #0f0f0f 0%, #0a0a0a 100%);
+        border: 1px solid #1f1f1f;
+        border-radius: 1rem;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .stat-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #0891b2, #06b6d4, #0891b2);
+        transform: translateX(-100%);
+        transition: transform 0.6s ease;
+    }
+    .stat-card:hover::before {
+        transform: translateX(0);
+    }
+    .stat-card:hover {
+        border-color: #06b6d4;
+        transform: translateY(-2px);
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, #fff 0%, #06b6d4 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+    
+    .trend-up { color: #ef4444; }
+    .trend-down { color: #22c55e; }
+    .trend-stable { color: #eab308; }
+    
+    .chart-container {
+        background: #0f0f0f;
+        border: 1px solid #1f1f1f;
+        border-radius: 1rem;
+        padding: 1rem;
+    }
+    
+    .empty-state {
+        background: linear-gradient(135deg, #1a1a2e, #0f0f0f);
+        border-radius: 1rem;
+        padding: 3rem;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap justify-between items-center">
+        <div>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 flex items-center justify-center text-xl font-bold text-white">
+                    {{ analyst.username|first|upper }}
+                </div>
+                <div>
+                    <h1 class="text-3xl font-bold text-white">{{ analyst.username }}</h1>
+                    <p class="text-gray-500 mt-1">
+                        Security Analyst
+                        {% if is_own_profile %} • This is you{% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="flex gap-3">
+            {% if not is_own_profile and is_admin %}
+            <a href="{% url 'cti_core:analyst_list' %}" class="text-cyan-400 hover:text-cyan-300 text-sm">
+                ← Back to Analysts
+            </a>
+            {% endif %}
+            {% if alerts_handled > 0 %}
+            <!-- Replace the existing Export Report button -->
+<a href="{% url 'cti_core:analyst_report_pdf' analyst.id %}" 
+target="_blank"
+class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-lg text-white transition shadow-lg flex items-center gap-2">
+ <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+ </svg>
+ Export PDF Report
+</a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Data Status Indicator -->
+    {% if alerts_handled == 0 %}
+    <div class="empty-state">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-20 h-20 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                <span class="text-4xl">⚠️</span>
+            </div>
+            <div>
+                <h3 class="text-yellow-400 font-semibold text-xl">No Data Available</h3>
+                <p class="text-gray-400 mt-2 max-w-md">
+                    This analyst hasn't handled any alerts yet. 
+                    {% if is_admin or is_own_profile %}
+                    Run the data population command to generate sample data:
+                    </p>
+                    <code class="inline-block mt-3 px-3 py-2 bg-gray-900 rounded-lg text-cyan-400 text-sm">
+                        python manage.py populate_analyst_data
+                    </code>
+                    {% else %}
+                    </p>
+                    <p class="text-gray-500 text-sm mt-3">Check back later when data is available.</p>
+                    {% endif %}
+            </div>
+        </div>
+    </div>
+    {% else %}
+    
+    <!-- Live Data Indicator -->
+    <div class="bg-green-500/10 border border-green-500/30 rounded-lg p-3">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                <span class="text-lg">✅</span>
+            </div>
+            <div>
+                <h3 class="text-green-400 font-semibold">Live Data Active</h3>
+                <p class="text-gray-400 text-sm">Showing {{ alerts_handled }} alerts handled by {{ analyst.username }} over the last 30 days</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="stat-card p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Alerts Handled</p>
+                    <p class="stat-value text-3xl mt-1">{{ alerts_handled }}</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Resolution Rate</p>
+                    <p class="stat-value text-3xl mt-1">{{ resolution_rate }}%</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+            <div class="mt-2 text-xs text-gray-600">{{ alerts_resolved }} resolved / {{ alerts_handled }} total</div>
+        </div>
+        
+        <div class="stat-card p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Avg Response Time</p>
+                    <p class="stat-value text-3xl mt-1">{{ avg_response_hours }}h</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+        
+        <div class="stat-card p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Daily Average</p>
+                    <p class="stat-value text-3xl mt-1">{{ daily_avg }}</p>
+                </div>
+                <div class="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Trend Indicator -->
+    <div class="card p-4">
+        <div class="flex items-center justify-between">
+            <span class="text-gray-400">30-Day Trend</span>
+            <div class="flex items-center gap-2">
+                {% if trend_direction == 'up' %}
+                    <span class="trend-up">↑ {{ trend_percent }}%</span>
+                    <span class="text-gray-500 text-sm">increase in activity</span>
+                {% elif trend_direction == 'down' %}
+                    <span class="trend-down">↓ {{ trend_percent }}%</span>
+                    <span class="text-gray-500 text-sm">decrease in activity</span>
+                {% else %}
+                    <span class="trend-stable">→ Stable</span>
+                {% endif %}
+            </div>
+        </div>
+        <canvas id="dailyTrendChart" height="80" class="mt-3"></canvas>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Severity Distribution -->
+        <div class="chart-container">
+            <h3 class="text-white font-semibold mb-3">Alert Severity Distribution</h3>
+            <canvas id="severityChart" height="200"></canvas>
+        </div>
+        
+        <!-- Status Distribution -->
+        <div class="chart-container">
+            <h3 class="text-white font-semibold mb-3">Alert Status Distribution</h3>
+            <canvas id="statusChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Hourly Activity -->
+        <div class="chart-container">
+            <h3 class="text-white font-semibold mb-3">⏰ Peak Activity Hours</h3>
+            <canvas id="hourlyChart" height="200"></canvas>
+        </div>
+        
+        <!-- Day of Week Activity -->
+        <div class="chart-container">
+            <h3 class="text-white font-semibold mb-3">📅 Activity by Day</h3>
+            <canvas id="dayChart" height="200"></canvas>
+        </div>
+    </div>
+
+    <!-- Charts Row 3 -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Common Indicator Types -->
+        <div class="chart-container">
+            <h3 class="text-white font-semibold mb-3">🔍 Most Handled IOC Types</h3>
+            <div id="commonIndicatorList" class="space-y-3">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+        
+        <!-- Top Threat Actors -->
+        <div class="chart-container">
+            <h3 class="text-white font-semibold mb-3">🎭 Top Threat Actors Handled</h3>
+            <div id="threatActorsList" class="space-y-3">
+                <!-- Will be populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Analyst Ranking (Admin only) -->
+    {% if is_admin and all_analysts_ranking %}
+    <div class="card p-5">
+        <h3 class="text-white font-semibold mb-4">🏆 Analyst Leaderboard</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full">
+                <thead class="border-b border-gray-800">
+                    <tr class="text-left text-gray-500 text-sm">
+                        <th class="pb-2">Rank</th>
+                        <th class="pb-2">Analyst</th>
+                        <th class="pb-2">Alerts Handled</th>
+                        <th class="pb-2">Resolution Rate</th>
+                      </tr>
+                </thead>
+                <tbody>
+                    {% for a in all_analysts_ranking %}
+                    <tr class="border-b border-gray-800">
+                        <td class="py-2">
+                            {% if forloop.counter == 1 %}🥇
+                            {% elif forloop.counter == 2 %}🥈
+                            {% elif forloop.counter == 3 %}🥉
+                            {% else %}{{ forloop.counter }}{% endif %}
+                        </td>
+                        <td class="py-2">
+                            <a href="{% url 'cti_core:analyst_dashboard_detail' a.id %}" class="text-cyan-400 hover:text-cyan-300">
+                                {{ a.username }}
+                            </a>
+                        </td>
+                        <td class="py-2 text-white">{{ a.alerts_handled }}</td>
+                        <td class="py-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-20 bg-gray-700 rounded-full h-1.5">
+                                    <div class="bg-green-500 h-1.5 rounded-full" style="width: {{ a.resolution_rate }}%"></div>
+                                </div>
+                                <span class="text-gray-400 text-sm">{{ a.resolution_rate }}%</span>
+                            </div>
+                        </td>
+                      </tr>
+                    {% endfor %}
+                </tbody>
+              </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Quick Stats Row -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="text-center p-3 bg-gray-900/30 rounded-lg">
+            <div class="text-cyan-400 text-2xl font-bold">{{ alerts_resolved }}</div>
+            <div class="text-gray-500 text-xs">Resolved</div>
+        </div>
+        <div class="text-center p-3 bg-gray-900/30 rounded-lg">
+            <div class="text-yellow-400 text-2xl font-bold">{{ alerts_acknowledged }}</div>
+            <div class="text-gray-500 text-xs">Acknowledged</div>
+        </div>
+        <div class="text-center p-3 bg-gray-900/30 rounded-lg">
+            <div class="text-orange-400 text-2xl font-bold">{{ alerts_investigating }}</div>
+            <div class="text-gray-500 text-xs">Investigating</div>
+        </div>
+        <div class="text-center p-3 bg-gray-900/30 rounded-lg">
+            <div class="text-purple-400 text-2xl font-bold">{{ campaigns_involved }}</div>
+            <div class="text-gray-500 text-xs">Campaigns</div>
+        </div>
+    </div>
+    
+    {% endif %} {# End of alerts_handled > 0 check #}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script>
+    // Initialize all charts only if data exists
+    document.addEventListener('DOMContentLoaded', function() {
+        {% if alerts_handled > 0 %}
+        // Daily Trend Chart
+        const dailyData = {{ daily_alerts_json|safe }};
+        if (dailyData && dailyData.length > 0) {
+            new Chart(document.getElementById('dailyTrendChart'), {
+                type: 'line',
+                data: {
+                    labels: dailyData.map(d => d.date.slice(5)),
+                    datasets: [{
+                        label: 'Alerts',
+                        data: dailyData.map(d => d.count),
+                        borderColor: '#06b6d4',
+                        backgroundColor: 'rgba(6,182,212,0.1)',
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 2
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }
+            });
+        }
+        
+        // Severity Chart
+        const severityData = {{ severity_distribution_json|safe }};
+        if (severityData && severityData.length > 0) {
+            new Chart(document.getElementById('severityChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: severityData.map(s => s.severity),
+                    datasets: [{
+                        data: severityData.map(s => s.count),
+                        backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#6b7280']
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#9ca3af' } } } }
+            });
+        }
+        
+        // Status Chart
+        const statusData = {{ status_distribution_json|safe }};
+        if (statusData && statusData.length > 0) {
+            new Chart(document.getElementById('statusChart'), {
+                type: 'bar',
+                data: {
+                    labels: statusData.map(s => s.status),
+                    datasets: [{
+                        label: 'Count',
+                        data: statusData.map(s => s.count),
+                        backgroundColor: '#06b6d4'
+                    }]
+                },
+                options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } } }
+            });
+        }
+        
+        // Hourly Chart
+        const hourlyData = {{ hourly_distribution_json|safe }};
+        if (hourlyData && hourlyData.some(h => h.count > 0)) {
+            new Chart(document.getElementById('hourlyChart'), {
+                type: 'line',
+                data: {
+                    labels: hourlyData.map(h => `${h.hour}:00`),
+                    datasets: [{
+                        label: 'Alerts',
+                        data: hourlyData.map(h => h.count),
+                        borderColor: '#f97316',
+                        fill: true,
+                        tension: 0.3
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { labels: { color: '#9ca3af' } } } }
+            });
+        }
+        
+        // Day of Week Chart
+        const dayData = {{ day_distribution_json|safe }};
+        if (dayData && dayData.some(d => d.count > 0)) {
+            new Chart(document.getElementById('dayChart'), {
+                type: 'bar',
+                data: {
+                    labels: dayData.map(d => d.day),
+                    datasets: [{
+                        label: 'Alerts',
+                        data: dayData.map(d => d.count),
+                        backgroundColor: '#8b5cf6'
+                    }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+        
+        // Common Indicators List
+        const indicators = {{ common_indicators_json|safe }};
+        if (indicators && indicators.length > 0) {
+            const maxCount = Math.max(...indicators.map(i => i.count));
+            document.getElementById('commonIndicatorList').innerHTML = indicators.map(i => `
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-300 text-sm">${i.indicator_type}</span>
+                        <span class="text-cyan-400 text-sm">${i.count}</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-1.5">
+                        <div class="bg-cyan-500 h-1.5 rounded-full" style="width: ${(i.count / maxCount) * 100}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            document.getElementById('commonIndicatorList').innerHTML = '<div class="text-center text-gray-500 py-4">No indicator data available</div>';
+        }
+        
+        // Threat Actors List
+        const actors = {{ top_threat_actors_json|safe }};
+        if (actors && actors.length > 0) {
+            const maxActorCount = Math.max(...actors.map(a => a.count));
+            document.getElementById('threatActorsList').innerHTML = actors.map(a => `
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <span class="text-gray-300 text-sm">${a.threat_actor}</span>
+                        <span class="text-purple-400 text-sm">${a.count}</span>
+                    </div>
+                    <div class="w-full bg-gray-700 rounded-full h-1.5">
+                        <div class="bg-purple-500 h-1.5 rounded-full" style="width: ${(a.count / maxActorCount) * 100}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            document.getElementById('threatActorsList').innerHTML = '<div class="text-center text-gray-500 py-4">No threat actor data available</div>';
+        }
+        {% else %}
+        // No data - populate empty states
+        document.getElementById('commonIndicatorList').innerHTML = '<div class="text-center text-gray-500 py-4">No data available. Run population command.</div>';
+        document.getElementById('threatActorsList').innerHTML = '<div class="text-center text-gray-500 py-4">No data available. Run population command.</div>';
+        {% endif %}
+    });
+</script>
+{% endblock %}

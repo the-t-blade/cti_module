@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Threat Landscape - CTI Module{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-900">Threat Landscape Analytics</h1>
+        <p class="text-gray-600 mt-2">Visualizations and insights into the current threat environment</p>
+    </div>
+    
+    <!-- Charts Row 1 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Indicators by Type -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Indicators by Type</h2>
+            <canvas id="indicatorsChart"></canvas>
+        </div>
+        
+        <!-- Alerts by Severity -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Alerts by Severity</h2>
+            <canvas id="severityChart"></canvas>
+        </div>
+    </div>
+    
+    <!-- Charts Row 2 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Campaigns by Status -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Campaigns by Status</h2>
+            <canvas id="campaignsChart"></canvas>
+        </div>
+        
+        <!-- Activity Timeline -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+            <div class="space-y-4">
+                <div>
+                    <h3 class="font-semibold text-gray-900 mb-2">Recent Indicators</h3>
+                    <ul class="space-y-2">
+                        {% for indicator in recent_indicators %}
+                        <li class="text-sm text-gray-600 flex items-center">
+                            <span class="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
+                            {{ indicator.indicator_type }}: {{ indicator.indicator_value|truncatewords:5 }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-gray-900 mb-2">Recent Campaigns</h3>
+                    <ul class="space-y-2">
+                        {% for campaign in recent_campaigns %}
+                        <li class="text-sm text-gray-600 flex items-center">
+                            <span class="w-2 h-2 bg-purple-600 rounded-full mr-2"></span>
+                            {{ campaign.name }}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Indicators by Type Chart
+    const indicatorsCtx = document.getElementById('indicatorsChart').getContext('2d');
+    new Chart(indicatorsCtx, {
+        type: 'doughnut',
+        data: {
+            labels: [{% for item in indicators_by_type %}'{{ item.indicator_type }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for item in indicators_by_type %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [
+                    '#3B82F6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981',
+                    '#06B6D4', '#6366F1', '#EF4444', '#F97316', '#14B8A6'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+    
+    // Alerts by Severity Chart
+    const severityCtx = document.getElementById('severityChart').getContext('2d');
+    new Chart(severityCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for item in alerts_by_severity %}'{{ item.severity }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Alerts',
+                data: [{% for item in alerts_by_severity %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [
+                    '#EF4444', '#F97316', '#FBBF24', '#3B82F6'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            indexAxis: 'y',
+            plugins: {
+                legend: { display: false }
+            }
+        }
+    });
+    
+    // Campaigns by Status Chart
+    const campaignsCtx = document.getElementById('campaignsChart').getContext('2d');
+    new Chart(campaignsCtx, {
+        type: 'pie',
+        data: {
+            labels: [{% for item in campaigns_by_status %}'{{ item.status }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+            datasets: [{
+                data: [{% for item in campaigns_by_status %}{{ item.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+                backgroundColor: [
+                    '#10B981', '#FBBF24', '#EF4444', '#06B6D4'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+</script>
+{% endblock %}

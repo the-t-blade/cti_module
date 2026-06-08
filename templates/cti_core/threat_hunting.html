@@ -1,0 +1,405 @@
+{% extends "base.html" %}
+
+{% block title %}Threat Hunting - CTI Platform{% endblock %}
+
+{% block extra_css %}
+<style>
+    .search-card {
+        background: #0f0f0f;
+        border: 1px solid #1f1f1f;
+        border-radius: 1rem;
+        transition: all 0.3s ease;
+    }
+    .search-card:focus-within {
+        border-color: #06b6d4;
+        box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.2);
+    }
+    .result-item {
+        background: #0f0f0f;
+        border: 1px solid #1f1f1f;
+        border-radius: 0.75rem;
+        transition: all 0.2s ease;
+    }
+    .result-item:hover {
+        border-color: #06b6d4;
+        transform: translateX(4px);
+    }
+    .saved-query-btn {
+        transition: all 0.2s ease;
+    }
+    .saved-query-btn:hover {
+        background: rgba(6, 182, 212, 0.1);
+        color: #06b6d4;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">🔍 Advanced Threat Hunting</h1>
+            <p class="text-gray-500 mt-1">Search, correlate, and investigate threat data across the platform</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="showSavedQueries()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                </svg>
+                Saved Queries
+            </button>
+            <button onclick="exportResults()" id="exportBtn" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition flex items-center gap-2 hidden">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Export Results
+            </button>
+        </div>
+    </div>
+
+    <!-- Search Interface -->
+    <div class="search-card p-6" id="searchCard">
+        <form id="huntForm" class="space-y-4">
+            {% csrf_token %}
+            
+            <!-- Main Search Input -->
+            <div>
+                <label class="block text-gray-400 text-sm mb-2">Search Query</label>
+                <div class="relative">
+                    <input type="text" name="query" id="searchQuery" 
+                           placeholder="Enter IP, domain, hash, keyword, or use patterns like *.example.com..." 
+                           required
+                           class="w-full px-4 py-3 bg-gray-900 border border-gray-700 rounded-xl focus:outline-none focus:border-cyan-500 text-white placeholder-gray-500">
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                        <span class="text-gray-500 text-xs">Press Enter</span>
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="text-gray-500 text-xs">Examples:</span>
+                    <code class="text-xs bg-gray-800 px-2 py-0.5 rounded text-cyan-400">192.168.1.*</code>
+                    <code class="text-xs bg-gray-800 px-2 py-0.5 rounded text-cyan-400">*.malware.com</code>
+                    <code class="text-xs bg-gray-800 px-2 py-0.5 rounded text-cyan-400">sha256:a1b2c3...</code>
+                    <code class="text-xs bg-gray-800 px-2 py-0.5 rounded text-cyan-400">actor:APT28</code>
+                </div>
+            </div>
+            
+            <!-- Filters Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <!-- Indicator Type Filter -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Indicator Type</label>
+                    <select name="indicator_type" id="indicatorType" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-cyan-500">
+                        <option value="">All Types</option>
+                        <option value="IPv4">🌐 IPv4 Address</option>
+                        <option value="IPv6">🌐 IPv6 Address</option>
+                        <option value="Domain">🔗 Domain</option>
+                        <option value="URL">🔒 URL</option>
+                        <option value="FileHash-MD5">📁 MD5 Hash</option>
+                        <option value="FileHash-SHA1">📁 SHA1 Hash</option>
+                        <option value="FileHash-SHA256">📁 SHA256 Hash</option>
+                        <option value="Email">📧 Email</option>
+                        <option value="CVE">⚠️ CVE</option>
+                    </select>
+                </div>
+                
+                <!-- Severity Filter -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Severity</label>
+                    <select name="severity" id="severity" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-cyan-500">
+                        <option value="">All Severities</option>
+                        <option value="Critical">🔴 Critical</option>
+                        <option value="High">🟠 High</option>
+                        <option value="Medium">🟡 Medium</option>
+                        <option value="Low">🔵 Low</option>
+                        <option value="Info">⚪ Info</option>
+                    </select>
+                </div>
+                
+                <!-- Confidence Range -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Min Confidence</label>
+                    <select name="min_confidence" id="minConfidence" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-cyan-500">
+                        <option value="0">Any</option>
+                        <option value="70">≥ 70%</option>
+                        <option value="80">≥ 80%</option>
+                        <option value="90">≥ 90%</option>
+                    </select>
+                </div>
+                
+                <!-- Time Range -->
+                <div>
+                    <label class="block text-gray-400 text-sm mb-2">Time Range</label>
+                    <select name="time_range" id="timeRange" class="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-white focus:border-cyan-500">
+                        <option value="7">Last 7 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="365">Last year</option>
+                        <option value="all">All time</option>
+                    </select>
+                </div>
+            </div>
+            
+            <!-- Action Buttons -->
+            <div class="flex flex-wrap gap-3 pt-2">
+                <button type="submit" id="searchBtn" class="px-6 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-lg text-white font-semibold transition shadow-lg flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Hunt
+                </button>
+                <button type="button" onclick="resetForm()" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition">
+                    Reset Filters
+                </button>
+                <button type="button" id="saveQueryBtn" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                    </svg>
+                    Save This Query
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Search Tips Card -->
+    <div class="bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30 rounded-lg p-4">
+        <div class="flex items-start gap-3">
+            <div class="text-2xl">💡</div>
+            <div>
+                <h3 class="font-semibold text-cyan-400">Search Tips & Patterns</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <ul class="text-sm text-gray-300 space-y-1">
+                        <li>• <code class="bg-gray-800 px-1 rounded">*.example.com</code> - Wildcard search</li>
+                        <li>• <code class="bg-gray-800 px-1 rounded">sha256:abc123...</code> - Hash search</li>
+                        <li>• <code class="bg-gray-800 px-1 rounded">campaign:emotet</code> - Campaign filter</li>
+                    </ul>
+                    <ul class="text-sm text-gray-300 space-y-1">
+                        <li>• <code class="bg-gray-800 px-1 rounded">actor:APT28</code> - Threat actor filter</li>
+                        <li>• <code class="bg-gray-800 px-1 rounded">severity:critical</code> - Severity filter</li>
+                        <li>• <code class="bg-gray-800 px-1 rounded">type:ipv4</code> - Type filter</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="hunting-results" class="space-y-4">
+        <div class="text-center text-gray-500 py-12">
+            <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+            <p>Enter a search query to begin threat hunting</p>
+            <p class="text-sm mt-2">Use the filters above to narrow down results</p>
+        </div>
+    </div>
+</div>
+
+<!-- Saved Queries Modal -->
+<div id="savedQueriesModal" class="fixed inset-0 bg-black/70 hidden items-center justify-center z-50">
+    <div class="bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 border border-gray-800">
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-white">📚 Saved Queries</h3>
+            <button onclick="closeSavedQueries()" class="text-gray-400 hover:text-white">&times;</button>
+        </div>
+        <div id="savedQueriesList" class="space-y-2 max-h-96 overflow-y-auto">
+            <p class="text-gray-500 text-center py-4">No saved queries yet</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentResults = [];
+
+    // Handle form submission
+    document.getElementById('huntForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const searchBtn = document.getElementById('searchBtn');
+        const originalText = searchBtn.innerHTML;
+        searchBtn.innerHTML = '<div class="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div> Searching...';
+        searchBtn.disabled = true;
+        
+        const formData = new FormData(e.target);
+        
+        try {
+            const response = await fetch('/cti/threat-hunting/search/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                },
+                body: formData
+            });
+            
+            const html = await response.text();
+            document.getElementById('hunting-results').innerHTML = html;
+            
+            // Show export button
+            document.getElementById('exportBtn').classList.remove('hidden');
+            
+        } catch (error) {
+            console.error('Search error:', error);
+            document.getElementById('hunting-results').innerHTML = `
+                <div class="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+                    <p class="text-red-400">Error performing search. Please try again.</p>
+                </div>
+            `;
+        } finally {
+            searchBtn.innerHTML = originalText;
+            searchBtn.disabled = false;
+        }
+    });
+    
+    // Reset form
+    function resetForm() {
+        document.getElementById('searchQuery').value = '';
+        document.getElementById('indicatorType').value = '';
+        document.getElementById('severity').value = '';
+        document.getElementById('minConfidence').value = '0';
+        document.getElementById('timeRange').value = '30';
+        
+        // Clear results
+        document.getElementById('hunting-results').innerHTML = `
+            <div class="text-center text-gray-500 py-12">
+                <svg class="w-16 h-16 text-gray-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+                <p>Filters reset. Enter a search query to begin.</p>
+            </div>
+        `;
+        document.getElementById('exportBtn').classList.add('hidden');
+    }
+    
+    // Save query
+    document.getElementById('saveQueryBtn').addEventListener('click', async () => {
+        const query = document.getElementById('searchQuery').value;
+        if (!query) {
+            showToast('Please enter a search query first', 'warning');
+            return;
+        }
+        
+        try {
+            const response = await fetch('/cti/threat-hunting/save-query/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    query: query,
+                    filters: {
+                        indicator_type: document.getElementById('indicatorType').value,
+                        severity: document.getElementById('severity').value,
+                        min_confidence: document.getElementById('minConfidence').value,
+                        time_range: document.getElementById('timeRange').value
+                    }
+                })
+            });
+            
+            if (response.ok) {
+                showToast('Query saved successfully!', 'success');
+            }
+        } catch (error) {
+            console.error('Save error:', error);
+            showToast('Failed to save query', 'error');
+        }
+    });
+    
+    // Show saved queries
+    async function showSavedQueries() {
+        try {
+            const response = await fetch('/cti/threat-hunting/saved-queries/');
+            const data = await response.json();
+            
+            const container = document.getElementById('savedQueriesList');
+            if (data.queries && data.queries.length) {
+                container.innerHTML = data.queries.map(q => `
+                    <div class="bg-gray-800 rounded-lg p-3 cursor-pointer hover:bg-gray-700 transition" onclick="loadSavedQuery('${q.id}')">
+                        <div class="text-white text-sm">${q.query}</div>
+                        <div class="text-gray-500 text-xs mt-1">${q.created_at}</div>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p class="text-gray-500 text-center py-4">No saved queries yet</p>';
+            }
+            
+            document.getElementById('savedQueriesModal').classList.remove('hidden');
+            document.getElementById('savedQueriesModal').classList.add('flex');
+            
+        } catch (error) {
+            console.error('Load saved queries error:', error);
+        }
+    }
+    
+    function closeSavedQueries() {
+        document.getElementById('savedQueriesModal').classList.add('hidden');
+        document.getElementById('savedQueriesModal').classList.remove('flex');
+    }
+    
+    function loadSavedQuery(queryId) {
+        closeSavedQueries();
+        // In production, load the saved query and execute it
+        showToast('Loading saved query...', 'info');
+    }
+    
+    // Export results
+    function exportResults() {
+        if (currentResults.length === 0) {
+            showToast('No results to export', 'warning');
+            return;
+        }
+        
+        let csv = 'Indicator Type,Value,Severity,Confidence,Campaign,First Seen,Last Seen\n';
+        currentResults.forEach(r => {
+            csv += `${r.type},${r.value},${r.severity},${r.confidence},${r.campaign || ''},${r.first_seen},${r.last_seen}\n`;
+        });
+        
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `threat_hunt_${new Date().toISOString().slice(0,19)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        
+        showToast('Results exported successfully', 'success');
+    }
+    
+    // Toast notification
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+        
+        const colors = {
+            success: 'from-green-600 to-green-800',
+            error: 'from-red-600 to-red-800',
+            warning: 'from-yellow-600 to-yellow-800',
+            info: 'from-blue-600 to-blue-800'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = `toast-slide bg-gradient-to-r ${colors[type]} rounded-lg shadow-2xl p-3 max-w-sm mb-2`;
+        toast.innerHTML = `<div class="text-sm text-white">${message}</div>`;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Auto-complete suggestions
+    let debounceTimer;
+    document.getElementById('searchQuery').addEventListener('input', function() {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(async () => {
+            if (this.value.length > 2) {
+                try {
+                    const response = await fetch(`/api/threat-hunting/suggest/?q=${encodeURIComponent(this.value)}`);
+                    const suggestions = await response.json();
+                    if (suggestions.length) {
+                        // Show suggestions UI (simplified)
+                        console.log('Suggestions:', suggestions);
+                    }
+                } catch(e) {}
+            }
+        }, 500);
+    });
+</script>
+{% endblock %}

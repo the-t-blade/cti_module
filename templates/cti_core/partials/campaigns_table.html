@@ -1,0 +1,84 @@
+<div class="overflow-x-auto">
+    <table class="w-full">
+        <thead>
+            <tr class="border-b border-gray-800">
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Name</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Threat Actor</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Indicators</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Confidence</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Last Activity</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800">
+            {% for campaign in campaigns %}
+            <tr class="hover:bg-gray-900/50 transition">
+                <td class="px-4 py-3">
+                    <div class="font-medium text-white">{{ campaign.name }}</div>
+                    <div class="text-gray-500 text-xs mt-1">{{ campaign.description|truncatechars:40 }}</div>
+                </td>
+                <td class="px-4 py-3">
+                    <span class="px-2 py-1 text-xs rounded-full 
+                        {% if campaign.status == 'Active' %}bg-red-500/20 text-red-400
+                        {% elif campaign.status == 'Monitoring' %}bg-yellow-500/20 text-yellow-400
+                        {% elif campaign.status == 'Resolved' %}bg-green-500/20 text-green-400
+                        {% else %}bg-gray-500/20 text-gray-400{% endif %}">
+                        {{ campaign.status }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-gray-300">
+                    {{ campaign.threat_actor|default:"Unknown" }}
+                </td>
+                <td class="px-4 py-3 text-gray-300">
+                    {{ campaign.indicators.count }}
+                </td>
+                <td class="px-4 py-3">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-16 bg-gray-700 rounded-full h-1.5">
+                            <div class="bg-purple-500 h-1.5 rounded-full" style="width: {{ campaign.confidence_score|floatformat:2|add:"00" }}%"></div>
+                        </div>
+                        <span class="text-gray-400 text-xs">{{ campaign.confidence_score|floatformat:2 }}%</span>
+                    </div>
+                </td>
+                <td class="px-4 py-3 text-gray-400 text-sm">
+                    {{ campaign.last_seen|date:"M d, H:i" }}
+                </td>
+                <td class="px-4 py-3">
+                    <a href="{% url 'cti_core:campaign_detail' campaign.id %}" 
+                       class="text-cyan-400 hover:text-cyan-300 text-sm">View Details</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="px-4 py-8 text-center text-gray-500">
+                    No campaigns found. Run correlation to create campaigns.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.has_other_pages %}
+<div class="mt-4 flex justify-center space-x-2">
+    {% if page_obj.has_previous %}
+    <a hx-get="{% url 'cti_core:campaigns_list' %}?page=1" hx-target="#campaigns-table"
+       class="px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition">First</a>
+    <a hx-get="{% url 'cti_core:campaigns_list' %}?page={{ page_obj.previous_page_number }}" hx-target="#campaigns-table"
+       class="px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition">Previous</a>
+    {% endif %}
+    
+    <span class="px-3 py-2 text-gray-400 text-sm">
+        Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}
+    </span>
+    
+    {% if page_obj.has_next %}
+    <a hx-get="{% url 'cti_core:campaigns_list' %}?page={{ page_obj.next_page_number }}" hx-target="#campaigns-table"
+       class="px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition">Next</a>
+    <a hx-get="{% url 'cti_core:campaigns_list' %}?page={{ page_obj.paginator.num_pages }}" hx-target="#campaigns-table"
+       class="px-3 py-2 bg-gray-800 rounded-lg text-sm hover:bg-gray-700 transition">Last</a>
+    {% endif %}
+</div>
+{% endif %}

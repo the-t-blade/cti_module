@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <title>{% block title %}Zimbabwe CERT - CTI Platform{% endblock %}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- HTMX & Alpine.js -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * { font-family: 'Inter', sans-serif; }
+        
+        body {
+            background: #0a0a0a;
+        }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f1f1f;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #06b6d4;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #0891b2;
+        }
+        
+        /* Severity Badges */
+        .severity-critical { background: linear-gradient(135deg, #dc2626, #991b1b); color: white; padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 600; }
+        .severity-high { background: linear-gradient(135deg, #f97316, #c2410c); color: white; padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 600; }
+        .severity-medium { background: linear-gradient(135deg, #eab308, #a16207); color: white; padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 600; }
+        .severity-low { background: linear-gradient(135deg, #3b82f6, #1e40af); color: white; padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 600; }
+        .severity-info { background: linear-gradient(135deg, #6b7280, #374151); color: white; padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 600; }
+        
+        /* Status Badges */
+        .status-new { background: rgba(220, 38, 38, 0.2); color: #f87171; border: 1px solid rgba(220, 38, 38, 0.3); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; }
+        .status-acknowledged { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; }
+        .status-investigating { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; }
+        .status-resolved { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; }
+        .status-false-positive { background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3); padding: 0.25rem 0.75rem; border-radius: 2rem; font-size: 0.75rem; font-weight: 500; }
+        
+        /* Card Styles */
+        .card {
+            background: #0f0f0f;
+            border: 1px solid #1f1f1f;
+            border-radius: 1rem;
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            border-color: #06b6d4;
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.1);
+        }
+        
+        /* Navbar */
+        .navbar {
+            background: #0a0a0a;
+            border-bottom: 1px solid #1f1f1f;
+        }
+        
+        /* Animations */
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+        }
+        
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .alert-blink {
+            animation: blink 1s infinite;
+        }
+        
+        .pulse {
+            animation: pulse-ring 2s infinite;
+        }
+        
+        /* Toast Animation */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .toast-slide {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        /* Glass Effect */
+        .glass {
+            background: rgba(15, 25, 35, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+        
+        /* Sidebar Transition */
+        .sidebar-transition {
+            transition: transform 0.3s ease;
+        }
+        
+        /* Active nav link */
+        .nav-active {
+            background: rgba(6, 182, 212, 0.1);
+            color: #06b6d4 !important;
+            border-left: 3px solid #06b6d4;
+        }
+        
+        /* Sidebar scrolling */
+        .sidebar-scroll {
+            height: calc(100% - 80px);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        
+        .sidebar-scroll::-webkit-scrollbar {
+            width: 4px;
+        }
+    </style>
+    
+    {% block extra_css %}{% endblock %}
+</head>
+<body x-data="{ sidebarOpen: true }" class="bg-[#0a0a0a]">
+    <!-- Sidebar -->
+    <aside class="fixed top-0 left-0 z-40 w-64 h-screen transition-transform sidebar-transition" 
+           :class="{ '-translate-x-full': !sidebarOpen, 'translate-x-0': sidebarOpen }">
+        <div class="h-full bg-[#0f0f0f] border-r border-gray-800 flex flex-col">
+            <!-- Logo Area - Fixed -->
+            <div class="flex-shrink-0 px-3 py-4 border-b border-gray-800">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-2xl">🛡️</span>
+                        <span class="font-bold text-lg bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">ZIM CERT</span>
+                    </div>
+                    <button @click="sidebarOpen = false" class="lg:hidden text-gray-400 hover:text-white">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Navigation - Scrollable Area -->
+            <div class="flex-1 overflow-y-auto sidebar-scroll px-3 py-4">
+                <nav class="space-y-1">
+                    <a href="{% url 'cti_core:dashboard' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if request.resolver_match.url_name == 'dashboard' %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                        </svg>
+                        <span>Dashboard</span>
+                    </a>
+                    
+                    <a href="{% url 'cti_core:threat_map' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if request.resolver_match.url_name == 'threat_map' %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Live Threat Map</span>
+                    </a>
+                    
+                    <a href="{% url 'cti_core:indicators_list' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if 'indicators' in request.resolver_match.url_name %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Indicators</span>
+                    </a>
+                    <!-- Add after Threat Hunting -->
+<a href="{% url 'cti_core:analyst_dashboard' %}" class="flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+    </svg>
+    <span>My Analytics</span>
+</a>
+                    
+                    <a href="{% url 'cti_core:campaigns_list' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if 'campaigns' in request.resolver_match.url_name %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <span>Campaigns</span>
+                    </a>
+                    
+                    <a href="{% url 'cti_core:alerts_list' %}" 
+                    class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if 'alerts' in request.resolver_match.url_name %}nav-active{% endif %}"
+                    id="alerts-nav-link">
+                     <div class="relative">
+                         <!-- Alert Bell Icon -->
+                         <svg class="w-5 h-5 {% if critical_alerts_count %}text-red-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                         </svg>
+                         <!-- Blinking red dot when critical alerts exist -->
+                         {% if critical_alerts_count %}
+                         <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                         </span>
+                         {% endif %}
+                     </div>
+                     <span>Alerts</span>
+                 </a>
+                    
+                    <a href="{% url 'cti_core:threat_hunting' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if request.resolver_match.url_name == 'threat_hunting' %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                        <span>Threat Hunting</span>
+                    </a>
+                    
+                    {% if user.is_staff %}
+                    <div class="pt-4 mt-4 border-t border-gray-800">
+                        <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Administration</p>
+                    </div>
+                    
+                    <a href="{% url 'cti_core:users_list' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if 'users' in request.resolver_match.url_name %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                        <span>User Management</span>
+                    </a>
+                    
+                    <a href="{% url 'cti_core:reports_list' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if 'reports' in request.resolver_match.url_name %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <span>Reports</span>
+                    </a>
+                    
+                    <a href="{% url 'cti_core:anomalies_list' %}" 
+                       class="nav-link flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition {% if 'anomalies' in request.resolver_match.url_name %}nav-active{% endif %}">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Anomaly Detection</span>
+                    </a>
+                    {% endif %}
+                </nav>
+            </div>
+            <a href="{% url 'cti_core:user_activity' user.pk %}" 
+            class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20 hover:text-green-300 transition-all duration-200"
+            title="View User Activity">
+             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+             </svg>
+             Activity
+         </a>
+            <!-- Add before the logout section -->
+<div class="pt-4 mt-4 border-t border-gray-800">
+    <p class="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Account</p>
+</div>
+
+<a href="{% url 'cti_core:profile' %}" class="flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+    </svg>
+    <span>My Profile</span>
+</a>
+
+<a href="{% url 'cti_core:change_password' %}" class="flex items-center space-x-3 px-4 py-2.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+    </svg>
+    <span>Change Password</span>
+</a>
+            
+            <!-- User Profile - Fixed at bottom -->
+            <div class="flex-shrink-0 p-4 border-t border-gray-800 bg-[#0f0f0f]">
+                <div class="flex items-center space-x-3">
+                    <div class="relative">
+                        <div class="w-8 h-8 rounded-full bg-gradient-to-r from-cyan-400 to-blue-500 flex items-center justify-center font-bold text-sm">
+                            {{ user.username|first|upper }}
+                        </div>
+                        <span class="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-gray-900 rounded-full"></span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-white truncate">{{ user.username }}</p>
+                        <p class="text-xs text-gray-500 truncate">
+                            {% if user.is_staff %}System Administrator{% else %}Security Analyst{% endif %}
+                        </p>
+                    </div>
+                    <!-- Change this line in the user profile section -->
+<form action="{% url 'logout' %}" method="post" class="inline">
+    {% csrf_token %}
+    <button type="submit" class="text-gray-500 hover:text-gray-400 transition">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+        </svg>
+    </button>
+</form>
+                </div>
+            </div>
+        </div>
+    </aside>
+    
+    <!-- Main Content -->
+    <div class="lg:ml-64">
+        <!-- Top Navbar -->
+        <nav class="navbar sticky top-0 z-30">
+            <div class="px-4 py-3 flex items-center justify-between">
+                <button @click="sidebarOpen = true" class="lg:hidden text-gray-400 hover:text-white focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                <button @click="sidebarOpen = !sidebarOpen" class="hidden lg:block text-gray-400 hover:text-white focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                    </svg>
+                </button>
+                
+                <div class="flex items-center space-x-4 ml-auto">
+                    <!-- Live Status Indicator -->
+                    <div class="flex items-center space-x-2">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span class="text-xs text-gray-500">LIVE</span>
+                    </div>
+                    
+                    <!-- Critical Alerts Indicator -->
+                    {% if critical_alerts_count %}
+                    <div class="flex items-center space-x-1 px-2 py-1 bg-red-500/20 rounded-lg">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                        </span>
+                        <span class="text-xs text-red-400 font-semibold">{{ critical_alerts_count }} Critical</span>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Quick Actions -->
+                    <button id="runCorrelationBtn" 
+                            onclick="runCorrelation()"
+                            class="px-3 py-1.5 text-xs bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition">
+                        ⚡ Run Correlation
+                    </button>
+                </div>
+            </div>
+        </nav>
+        
+        <!-- Toast Container for Notifications -->
+        <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+        
+        <!-- Messages -->
+        <div id="global-notification" class="fixed top-4 right-4 z-50"></div>
+        
+        {% if messages %}
+        <div class="px-4 pt-4">
+            {% for message in messages %}
+            <div class="mb-4 p-4 rounded-xl border-l-4 border-cyan-500 bg-gray-800/50 text-gray-300">
+                <div class="flex items-center">
+                    <svg class="w-5 h-5 text-cyan-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    {{ message }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <!-- Main Content -->
+        <main class="p-6">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    
+    {% block extra_js %}{% endblock %}
+    
+    <!-- ============================================================ -->
+    <!-- REAL-TIME ALERT JS WITH TOAST NOTIFICATIONS                 -->
+    <!-- ============================================================ -->
+    <script>
+        // Toast notification function
+        function showToast(alert) {
+            const toastContainer = document.getElementById('toast-container');
+            if (!toastContainer) return;
+            
+            const severityColors = {
+                'Critical': 'from-red-600 to-red-800',
+                'High': 'from-orange-600 to-orange-800', 
+                'Medium': 'from-yellow-600 to-yellow-800',
+                'Low': 'from-blue-600 to-blue-800'
+            };
+            
+            const color = severityColors[alert.severity] || 'from-gray-600 to-gray-800';
+            
+            const toast = document.createElement('div');
+            toast.className = `toast-slide bg-gradient-to-r ${color} rounded-lg shadow-2xl p-4 max-w-sm border-l-4 border-white mb-3`;
+            toast.innerHTML = `
+                <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0">
+                        <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                            <span class="text-xl">🚨</span>
+                        </div>
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-bold text-white text-sm">${alert.severity} Threat Detected</h3>
+                        <p class="text-white/90 text-xs mt-1">${alert.title ? alert.title.substring(0, 80) : 'New threat indicator'}</p>
+                        <p class="text-white/70 text-xs mt-2 font-mono">${alert.indicator_value || alert.indicator || ''}</p>
+                        <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                                class="text-white/50 hover:text-white text-xs mt-2">
+                            Dismiss
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Auto remove after 8 seconds
+            setTimeout(() => {
+                if (toast.parentElement) toast.remove();
+            }, 8000);
+        }
+        
+        // Update alert badge count
+        function updateAlertBadge(count) {
+            const badge = document.getElementById('alert-badge');
+            if (badge) {
+                badge.textContent = count || 0;
+                if (count > 0) {
+                    badge.classList.add('alert-blink');
+                } else {
+                    badge.classList.remove('alert-blink');
+                }
+            }
+        }
+        
+        // Browser notification request
+        let notificationPermission = false;
+        if ('Notification' in window) {
+            Notification.requestPermission().then(perm => {
+                notificationPermission = perm === 'granted';
+            });
+        }
+        
+        // Track last alert count for deduplication
+        let lastAlertIds = new Set();
+        let pollingInterval = null;
+        let lastCriticalCount = {{ critical_alerts_count|default:0 }};
+        
+        // Function to fetch new alerts
+        async function fetchNewAlerts() {
+            try {
+                const response = await fetch('/cti/alerts/?format=json&limit=10&ordering=-created_at');
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Update badge with critical count
+                    const criticalCount = data.critical_count || 0;
+                    updateAlertBadge(criticalCount);
+                    
+                    if (data.results && data.results.length) {
+                        // Check for new alerts
+                        data.results.forEach(alert => {
+                            if (!lastAlertIds.has(alert.id) && alert.status === 'New') {
+                                lastAlertIds.add(alert.id);
+                                showToast(alert);
+                                
+                                // Browser notification for Critical alerts
+                                if (notificationPermission && alert.severity === 'Critical') {
+                                    new Notification('⚠️ Critical Threat Alert', {
+                                        body: alert.title || 'New critical threat detected',
+                                        icon: '/static/favicon.ico',
+                                        tag: 'threat-alert'
+                                    });
+                                }
+                            }
+                        });
+                        
+                        // Limit stored IDs to last 100
+                        if (lastAlertIds.size > 100) {
+                            const ids = Array.from(lastAlertIds);
+                            lastAlertIds = new Set(ids.slice(-50));
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Alert fetch error:', error);
+            }
+        }
+        
+        // Enhanced correlation function
+        async function runCorrelation() {
+            const btn = document.getElementById('runCorrelationBtn');
+            if (!btn) return;
+            
+            const originalHtml = btn.innerHTML;
+            btn.innerHTML = '<div class="animate-spin inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full mr-1"></div> Running...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/cti/correlation/run/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                // Show success toast
+                showToast({
+                    severity: 'Info',
+                    title: `Correlation completed! ${result.campaigns_created || 0} new campaigns created`,
+                    indicator: ''
+                });
+                
+                // Refresh dashboard data
+                if (typeof refreshDashboard === 'function') {
+                    refreshDashboard();
+                }
+                if (typeof fetchMapData === 'function') {
+                    fetchMapData();
+                }
+                
+            } catch (error) {
+                console.error('Correlation error:', error);
+                showToast({
+                    severity: 'High',
+                    title: 'Correlation failed. Check if services are running.',
+                    indicator: ''
+                });
+            } finally {
+                btn.innerHTML = originalHtml;
+                btn.disabled = false;
+            }
+        }
+        
+        // Auto-generate simulated alerts every 3 minutes
+        let alertInterval = setInterval(async () => {
+            try {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const response = await fetch('/api/alerts/generate_simulated/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        console.log('✅ Simulated alert created:', data.title);
+                        
+                        // Show toast notification
+                        showToast({
+                            severity: data.severity,
+                            title: data.title,
+                            indicator: data.indicator
+                        });
+                        
+                        // Refresh alerts
+                        fetchNewAlerts();
+                        
+                        // Refresh dashboard stats if function exists
+                        if (typeof refreshDashboard === 'function') {
+                            refreshDashboard();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Alert generation error:', error);
+            }
+        }, 180000); // 3 minutes (180,000 ms)
+        
+        // Also run one immediately when page loads
+        setTimeout(() => {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+            fetch('/api/alerts/generate_simulated/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            }).catch(e => console.log('Initial alert generation failed:', e));
+            fetchNewAlerts();
+        }, 5000);
+        
+        // HTMX CSRF handler
+        document.body.addEventListener('htmx:configRequest', function(event) {
+            const csrfToken = document.querySelector('meta[name="csrf-token"]');
+            if (csrfToken) {
+                event.detail.headers['X-CSRFToken'] = csrfToken.getAttribute('content');
+            }
+        });
+        
+        // Auto-hide messages after 5 seconds
+        setTimeout(() => {
+            const messages = document.querySelectorAll('[role="alert"]');
+            messages.forEach(msg => msg.remove());
+        }, 5000);
+        
+        // Stop button functionality (optional)
+        window.stopAutoAlerts = function() {
+            if (alertInterval) {
+                clearInterval(alertInterval);
+                console.log('Auto alerts stopped');
+                showToast({ severity: 'Info', title: 'Auto alerts stopped', indicator: '' });
+            }
+        };
+        
+        // Start button functionality (optional)
+        window.startAutoAlerts = function() {
+            if (alertInterval) clearInterval(alertInterval);
+            alertInterval = setInterval(async () => {
+                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content || '';
+                const response = await fetch('/api/alerts/generate_simulated/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        showToast({
+                            severity: data.severity,
+                            title: data.title,
+                            indicator: data.indicator
+                        });
+                    }
+                }
+            }, 180000);
+            console.log('Auto alerts started');
+        };
+    </script>
+</body>
+</html>

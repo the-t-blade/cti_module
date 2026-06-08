@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}My Profile - CTI Platform{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex flex-wrap justify-between items-center">
+        <div>
+            <h1 class="text-3xl font-bold text-white">👤 My Profile</h1>
+            <p class="text-gray-500 mt-1">View and manage your account information</p>
+        </div>
+        <a href="{% url 'cti_core:change_password' %}" 
+           class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 rounded-lg text-white font-semibold transition shadow-lg flex items-center gap-2">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+            </svg>
+            Change Password
+        </a>
+    </div>
+
+    <!-- Profile Card -->
+    <div class="card p-6">
+        <div class="flex flex-col md:flex-row gap-6">
+            <!-- Avatar -->
+            <div class="flex flex-col items-center">
+                <div class="w-32 h-32 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 flex items-center justify-center text-4xl font-bold text-white">
+                    {{ user.username|first|upper }}
+                </div>
+                <div class="mt-3 text-center">
+                    <span class="px-3 py-1 text-xs rounded-full bg-green-500/20 text-green-400">
+                        {{ user.profile.get_role_display|default:"Security Analyst" }}
+                    </span>
+                </div>
+            </div>
+
+            <!-- Profile Info -->
+            <div class="flex-1 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-500 text-sm">Username</label>
+                        <p class="text-white text-lg font-mono">{{ user.username }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Email Address</label>
+                        <p class="text-white">{{ user.email|default:"Not provided" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Full Name</label>
+                        <p class="text-white">{{ user.get_full_name|default:"Not provided" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Role</label>
+                        <p class="text-white">
+                            {% if user.is_superuser %}Super Administrator
+                            {% elif user.is_staff %}System Administrator
+                            {% else %}Security Analyst{% endif %}
+                        </p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Department</label>
+                        <p class="text-white">{{ user.profile.department|default:"Not specified" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Phone Number</label>
+                        <p class="text-white">{{ user.profile.phone_number|default:"Not specified" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Member Since</label>
+                        <p class="text-white">{{ user.date_joined|date:"F j, Y" }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-sm">Last Login</label>
+                        <p class="text-white">{{ user.last_login|date:"F j, Y H:i"|default:"Never" }}</p>
+                    </div>
+                </div>
+
+                <!-- Edit Profile Button -->
+                <div class="pt-4 border-t border-gray-800">
+                    <button onclick="toggleEditMode()" id="editProfileBtn" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 transition">
+                        Edit Profile
+                    </button>
+                </div>
+
+                <!-- Edit Profile Form (hidden by default) -->
+                <form id="editProfileForm" method="post" action="{% url 'cti_core:update_profile' %}" class="hidden space-y-4 pt-4 border-t border-gray-800">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-1">First Name</label>
+                            <input type="text" name="first_name" value="{{ user.first_name }}" 
+                                   class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-1">Last Name</label>
+                            <input type="text" name="last_name" value="{{ user.last_name }}" 
+                                   class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-1">Email</label>
+                            <input type="email" name="email" value="{{ user.email }}" 
+                                   class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-1">Department</label>
+                            <input type="text" name="department" value="{{ user.profile.department|default:'' }}" 
+                                   class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 text-sm mb-1">Phone Number</label>
+                            <input type="text" name="phone_number" value="{{ user.profile.phone_number|default:'' }}" 
+                                   class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white">
+                        </div>
+                    </div>
+                    <div class="flex gap-3">
+                        <button type="submit" class="px-4 py-2 bg-gradient-to-r from-cyan-500 to-blue-600 rounded-lg text-white">Save Changes</button>
+                        <button type="button" onclick="toggleEditMode()" class="px-4 py-2 bg-gray-800 rounded-lg text-gray-300">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Summary -->
+    <div class="card p-6">
+        <h2 class="text-xl font-bold text-white mb-4">📊 Your Activity Summary</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="text-center p-4 bg-gray-900/50 rounded-lg">
+                <div class="text-3xl font-bold text-cyan-400">{{ alerts_handled|default:0 }}</div>
+                <div class="text-gray-500 text-sm">Alerts Handled</div>
+            </div>
+            <div class="text-center p-4 bg-gray-900/50 rounded-lg">
+                <div class="text-3xl font-bold text-green-400">{{ alerts_resolved|default:0 }}</div>
+                <div class="text-gray-500 text-sm">Alerts Resolved</div>
+            </div>
+            <div class="text-center p-4 bg-gray-900/50 rounded-lg">
+                <div class="text-3xl font-bold text-purple-400">{{ resolution_rate|default:0 }}%</div>
+                <div class="text-gray-500 text-sm">Resolution Rate</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Keys Section -->
+    <div class="card p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold text-white">🔑 API Access Tokens</h2>
+            <button onclick="generateApiKey()" class="px-3 py-1.5 text-sm bg-cyan-500/20 text-cyan-400 rounded-lg hover:bg-cyan-500/30 transition">
+                Generate New Token
+            </button>
+        </div>
+        <div id="apiKeysList" class="space-y-2">
+            <p class="text-gray-500 text-sm">No API tokens generated yet.</p>
+        </div>
+        <p class="text-gray-500 text-xs mt-3">API tokens allow you to authenticate with the CTI REST API.</p>
+    </div>
+</div>
+
+<script>
+function toggleEditMode() {
+    const form = document.getElementById('editProfileForm');
+    const btn = document.getElementById('editProfileBtn');
+    form.classList.toggle('hidden');
+    btn.classList.toggle('hidden');
+}
+
+async function generateApiKey() {
+    try {
+        const response = await fetch('/api/api-tokens/create_token/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content,
+            }
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('New API Key: ' + data.token + '\n\nSave this key securely. It will not be shown again.');
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Error generating API key:', error);
+    }
+}
+
+// Load API keys
+async function loadApiKeys() {
+    try {
+        const response = await fetch('/api/api-tokens/');
+        const data = await response.json();
+        const container = document.getElementById('apiKeysList');
+        if (data.tokens && data.tokens.length) {
+            container.innerHTML = data.tokens.map(token => `
+                <div class="flex justify-between items-center p-3 bg-gray-900/50 rounded-lg border border-gray-800">
+                    <code class="text-cyan-400 text-sm font-mono">${token.key.substring(0, 20)}...</code>
+                    <div class="flex gap-2">
+                        <span class="text-gray-500 text-xs">Created: ${new Date(token.created).toLocaleDateString()}</span>
+                        <button onclick="revokeApiKey('${token.key}')" class="text-red-400 hover:text-red-300 text-sm">Revoke</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+    } catch(e) {}
+}
+loadApiKeys();
+</script>
+{% endblock %}
